@@ -1,0 +1,9 @@
+node_modules
+dist
+data/*.db*
+*.log
+.git
+.DS_Store
+shoot.cjs
+preview-*.png
+.env
