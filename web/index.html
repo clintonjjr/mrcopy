@@ -4,7 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MRCOPY — Copy-trade calls for trading agents</title>
-<link rel="icon" href="data:,">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' rx='7' fill='%23FFD400'/%3E%3Cpolyline points='7,17 11,17 13.5,10 17,23 19.5,17 25,17' fill='none' stroke='black' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<meta name="theme-color" content="#000000">
 <meta name="mrcopy-api" content="">
 <meta name="description" content="Mrcopy watches smart perp traders on Hyperliquid + Aster and serves ranked copy-trade calls to any agent over REST or MCP.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -57,10 +58,9 @@
     padding-bottom: 4px;
   }
   .brand { display: flex; align-items: center; gap: 12px; }
-  .brand .sq {
-    width: 14px; height: 14px;
-    background: var(--pulse);
-    box-shadow: 0 0 14px var(--pulse);
+  .brand .mark {
+    width: 36px; height: 36px; flex: none;
+    filter: drop-shadow(0 0 10px rgba(255, 212, 0, 0.55));
   }
   .brand h1 {
     margin: 0;
@@ -301,6 +301,8 @@
   .step h3 .n { font-family: var(--mono); color: var(--pulse); font-size: 13px; margin-right: 10px; }
   .step p { margin: 0 0 10px; font-size: 13.5px; line-height: 1.55; color: var(--dim); max-width: 70ch; }
   .step p code { font-family: var(--mono); font-size: 12px; color: var(--pulse); }
+  .cmd-label { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--faint); margin: 14px 0 6px; }
+  .cmd-label:first-of-type { margin-top: 2px; }
   pre {
     margin: 0;
     background: #000;
@@ -356,7 +358,7 @@
 <main class="wrap">
   <header class="top">
     <div class="brand">
-      <span class="sq" aria-hidden="true"></span>
+      <svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><rect x="4.5" y="4.5" width="17" height="17" rx="4" fill="none" stroke="#FFD400" stroke-opacity="0.5" stroke-width="2.5"/><rect x="10.5" y="10.5" width="17" height="17" rx="4" fill="#FFD400"/><polyline points="13,19 16,19 18,13.5 21,24 23.5,19 25,19" fill="none" stroke="#000" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       <div>
         <h1>MRCOPY</h1>
         <p>HL + Aster lead · Binance follows</p>
@@ -405,7 +407,7 @@
     <div class="steps">
       <div class="step">
         <h3><span class="n">01</span>Poll the calls</h3>
-        <p>Your agent polls for open calls — and <code>/calls/history</code> for the closed tape. Same machine, no key, no CORS.</p>
+        <p>Your agent polls for open calls — and <code>/calls/history</code> for the closed tape. Open feed, no key.</p>
         <pre data-code="curl -s http://localhost:8787/calls/active | head -c 600">curl -s http://localhost:8787/calls/active | head -c 600</pre>
         <button class="copy" type="button">Copy</button>
       </div>
@@ -426,17 +428,16 @@
         <button class="copy" type="button">Copy</button>
       </div>
       <div class="step">
-        <h3><span class="n">04</span>Connect over MCP</h3>
-        <p>Run Mrcopy's MCP server next to the Binance MCP server in Claude / ChatGPT / Codex / Cursor. Tools: <code>get_active_calls · get_call_detail · list_tracked_wallets · get_performance · get_briefing · ask_brain · list_plans</code>.</p>
-        <pre data-code="{&quot;mcpServers&quot;: {&quot;mrcopy&quot;: {&quot;command&quot;: &quot;npx&quot;, &quot;args&quot;: [&quot;tsx&quot;, &quot;src/mcp-standalone.ts&quot;], &quot;cwd&quot;: &quot;/Users/user/Documents/Mrcopy&quot;}}}">{
-  "mcpServers": {
-    "mrcopy": {
-      "command": "npx",
-      "args": ["tsx", "src/mcp-standalone.ts"],
-      "cwd": "/Users/user/Documents/Mrcopy"
-    }
-  }
-}</pre>
+        <h3><span class="n">04</span>Connect over MCP — no key</h3>
+        <p>Point any agent at the live brain over Streamable HTTP. No key, no login. Same 7 tools everywhere: <code>get_active_calls · get_call_detail · list_tracked_wallets · get_performance · get_briefing · ask_brain · list_plans</code>.</p>
+        <p class="cmd-label">Claude</p>
+        <pre data-code="claude mcp add mrcopy --transport http http://localhost:8787/mcp">claude mcp add mrcopy --transport http <span class="mcp-host">http://localhost:8787</span>/mcp</pre>
+        <button class="copy" type="button">Copy</button>
+        <p class="cmd-label">Codex</p>
+        <pre data-code="codex mcp add mrcopy --url http://localhost:8787/mcp">codex mcp add mrcopy --url <span class="mcp-host">http://localhost:8787</span>/mcp</pre>
+        <button class="copy" type="button">Copy</button>
+        <p class="cmd-label">Cursor + ChatGPT — paste as server / plugin URL</p>
+        <pre data-code="http://localhost:8787/mcp"><span class="mcp-host">http://localhost:8787</span>/mcp</pre>
         <button class="copy" type="button">Copy</button>
       </div>
       <div class="step">
@@ -447,7 +448,7 @@
       </div>
       <div class="step">
         <h3><span class="n">06</span>Ask the brain</h3>
-        <p>Any agent asks in plain language and gets ranked setups back. Needs <code>API_SECRET</code> as <code>x-api-secret</code> when set. <code>/briefing</code> returns the ranked board as JSON.</p>
+        <p>Any agent asks in plain language and gets ranked setups back. No key — just ask. <code>/briefing</code> returns the ranked board as JSON.</p>
         <pre data-code="curl -s -X POST http://localhost:8787/ask -H 'Content-Type: application/json' -d '{&quot;question&quot;:&quot;what can I enter today?&quot;}'">curl -s -X POST http://localhost:8787/ask \
   -H 'Content-Type: application/json' \
   -d '{"question":"what can I enter today?"}'</pre>
@@ -466,20 +467,10 @@
 <script>
 (function () {
   'use strict';
-  // API base: baked meta (Vercel build) → ?api= override (saved) → same origin.
+  // API base: baked at build time (Vercel). Always the AWS brain.
+  // Also clears any host override saved during the tunnel era.
   var API = (function () {
-    try {
-      var q = new URLSearchParams(window.location.search).get('api');
-      if (q) {
-        try { window.localStorage.setItem('mrcopy_api', q); } catch (e) {}
-        try { window.history.replaceState({}, '', window.location.pathname); } catch (e2) {}
-        return q.replace(/\/$/, '');
-      }
-      try {
-        var s = window.localStorage.getItem('mrcopy_api');
-        if (s) return s.replace(/\/$/, '');
-      } catch (e3) {}
-    } catch (e4) {}
+    try { window.localStorage.removeItem('mrcopy_api'); } catch (e) {}
     var m = document.querySelector('meta[name="mrcopy-api"]');
     var c = m ? (m.getAttribute('content') || '') : '';
     return c.replace(/\/$/, '');
@@ -724,14 +715,43 @@
     }
   }
 
-  // copy buttons
+  // Live hosts in every command. REST talks to the brain directly (baked
+  // address → localhost example). MCP goes through this app's own /mcp
+  // proxy — or straight to the brain when running locally.
+  (function () {
+    var rest = API || 'http://localhost:8787';
+    var viaApp = /^https?:$/.test(window.location.protocol) &&
+      !/^(localhost|127\.0\.0\.1)/.test(window.location.hostname || '');
+    var mcp = viaApp ? window.location.origin : rest;
+    Array.prototype.forEach.call(document.querySelectorAll('.api-host'), function (el) {
+      el.textContent = rest;
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('.mcp-host'), function (el) {
+      el.textContent = mcp;
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('pre[data-code]'), function (pre) {
+      var code = pre.getAttribute('data-code') || '';
+      var hasMcp = !!pre.querySelector('.mcp-host');
+      var hasApi = !!pre.querySelector('.api-host');
+      code = code.split('http://localhost:8787').join(hasMcp ? mcp : rest);
+      pre.setAttribute('data-code', code);
+      if (!hasMcp && !hasApi) {
+        pre.textContent = pre.textContent.split('http://localhost:8787').join(rest);
+      }
+    });
+  })();
+
+  // copy buttons (every command block has its own)
   Array.prototype.forEach.call(document.querySelectorAll('.step'), function (st) {
-    var btn = st.querySelector('.copy'), pre = st.querySelector('pre');
-    btn.addEventListener('click', function () {
-      var txt = pre.getAttribute('data-code') || pre.textContent;
-      if (navigator.clipboard) navigator.clipboard.writeText(txt).catch(function () {});
-      btn.textContent = 'Copied';
-      setTimeout(function () { btn.textContent = 'Copy'; }, 1400);
+    Array.prototype.forEach.call(st.querySelectorAll('.copy'), function (btn) {
+      var pre = btn.previousElementSibling;
+      while (pre && pre.tagName !== 'PRE') pre = pre.previousElementSibling;
+      btn.addEventListener('click', function () {
+        var txt = (pre && (pre.getAttribute('data-code') || pre.textContent)) || '';
+        if (navigator.clipboard) navigator.clipboard.writeText(txt).catch(function () {});
+        btn.textContent = 'Copied';
+        setTimeout(function () { btn.textContent = 'Copy'; }, 1400);
+      });
     });
   });
 

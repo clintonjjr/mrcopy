@@ -1,5 +1,8 @@
 {
   "outputDirectory": "dist-web",
   "buildCommand": "node scripts/build-web.mjs",
-  "framework": null
+  "framework": null,
+  "rewrites": [
+    { "source": "/mcp", "destination": "https://mrcopy.100.61.3.35.nip.io/mcp" }
+  ]
 }

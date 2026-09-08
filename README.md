@@ -1,61 +1,85 @@
-# Mrcopy (signal agent for Binance Agent OS)
+# Mrcopy
 
-> The memecoin agent watches wallets → scores → executes via Jupiter.
-> This watches **smart perp traders on Hyperliquid + Aster** → scores → emits a
-> **structured CALL** your own Binance Agent OS execution agent places via
-> Spot / USDⓈ-M. **Signal-only: no Binance keys, no orders placed here.**
+**Copy the traders who move first.**
 
-## Why this shape
+Mrcopy watches smart perp traders on Hyperliquid and Aster, scores the moments several of them converge on the same trade, and serves ranked copy-trade calls — entry, stop, TP ladder, invalidation — to any agent over REST or MCP. Signal-only: it never holds exchange keys and never places orders. Your agent trades on Binance; Mrcopy does the watching.
 
-Binance Agent OS only lets its known agents (Claude / ChatGPT / Codex / Cursor
-over the Binance MCP server, dedicated sub-account, withdrawals blocked) trade.
-So this repo is the **call agent**: it does the watching/scoring and hands a
-clean JSON call to your execution agent. Binance typically lags Aster/HL on
-listings and momentum — that lag is the edge.
-
-## Architecture
-
-```
-src/
-├── agents/
-│   ├── hyperliquidTracker.ts  public clearinghouseState + userFills polling (lead venue)
-│   ├── asterTracker.ts        public fapi markets + POST /ingest/aster pushes (privacy-default chain)
-│   ├── binanceLegTracker.ts   public fapi: listing / funding / volume guard (lag confirmation)
-│   ├── signalDetector.ts      2-5 wallet directional convergence (600s window)
-│   ├── marketFilter.ts        conviction 0-100 + leverage suggestion + Binance guards
-│   ├── exitMonitor.ts         leaders-close/flip + TTL → EXIT
-│   ├── learningEngine.ts      wallet trust 0.0-2.0 via outcome feedback
-│   ├── webhookServer.ts       REST: GET /calls/active, POST /ingest/*, POST /calls/:id/close
-│   └── mcpServer.ts           MCP tools: get_active_calls, get_call_detail, ...
-├── core/
-│   ├── orchestrator.ts        signal → Binance check → conviction → publish → notify
-│   ├── callBus.ts             canonical TradeCall + execution-webhook push
-│   └── notifier.ts            Telegram CALL/EXIT pings
-├── data/db.ts                 SQLite: calls, wallet_trust, fills_seen
-├── soul/                      SOUL.md + PERSONALITY.md
-└── skills/call-agent/SKILL.md Binance Skill Hub skill for your execution agent
+```mermaid
+flowchart LR
+    HL[Hyperliquid leader fills] --> SIG[Directional convergence]
+    AST[Aster flow pushes] --> SIG
+    SIG --> CONV[Conviction + leverage]
+    CONV --> LAG[Binance lag check]
+    LAG --> CALL[CALL published]
+    CALL --> EXIT[Exit monitor]
+    EXIT --> TRUST[Wallet trust update]
+    TRUST --> SIG
 ```
 
-## Setup
+## The problem it solves
+
+Binance is where the liquidity ends up, not where the trade starts. New perps light up on Hyperliquid and Aster first — early entries, real size, minutes before Binance follows on listings and momentum. By the time a move is obvious on Binance, the edge is gone.
+
+Watching one smart wallet is noise. Watching sixty is a firehose. The tradable moment is narrow: several proven wallets, same direction, same window, with Binance lagging behind. That is the only thing Mrcopy emits.
+
+There is a second constraint that shapes the whole design: the execution side only lets its known agents trade, inside a dedicated sub-account, over its own MCP server. So Mrcopy is deliberately the call agent, not the trading agent. It watches, scores, and hands over a clean JSON call. It never touches keys, never places orders, never can.
+
+## How we built it
+
+Mrcopy is a pipeline, not a model. Three venue trackers feed one signal detector; the detector's output passes a market filter, a Binance guard, and a risk gate before anything becomes a call. Every call is then managed to its exit, and every exit teaches the system which wallets to trust.
+
+```mermaid
+flowchart LR
+    OPEN[CALL opens] --> WATCH[Leaders watched]
+    WATCH --> CLOSE2[2 leaders close or flip]
+    WATCH --> TTL[24h expiry]
+    CLOSE2 --> EXITC[EXIT published]
+    TTL --> EXITC
+    EXITC --> FILL[Execution agent reports fill]
+    FILL --> TRUST2[Trust 0.0-2.0 updated]
+```
+
+The flow is:
+
+**leaders move → convergence → conviction → Binance check → CALL → exits → trust**
+
+Hyperliquid flow is automatic — public on-chain polling of clearinghouse state and fills. Aster is privacy-default: no public endpoint reveals another trader's positions, so Aster flow arrives as pushes to `POST /ingest` from whatever indexer, firehose, or scraper you run. Binance is the confirmation leg: public market data only — listing status, funding, volume — used to prove the lag before a call goes out.
+
+Discovery keeps the wallet pool alive on its own. It re-syncs from the Hyperliquid leaderboard, ranks by month PnL above a minimum equity, and rotates out dead wallets up to a pool cap. The seed list in `.env` is just the opening rumor; the desk fills itself.
+
+## How it thinks
+
+A reasoning posture, not a checklist. A few load-bearing principles:
+
+- **Convergence, not heroes.** One wallet aping into something is entertainment. Two to five wallets taking the same direction inside a 600-second window is a signal. Nothing below conviction 60 leaves the building.
+- **The lag is the edge.** If Binance already has the perp and the move is already priced, there is no call — or there is a call flagged `pre_binance_alpha`, meaning the leaders are early and the execution agent should wait (or touch spot only).
+- **Trust is earned in public.** Every wallet carries a trust score from 0.0 to 2.0, moved only by reported outcomes. Good calls compound a wallet's influence; bad ones retire it. Nobody is trusted on reputation.
+- **Protections halt everything.** Cooldowns after stops, a stop-guard, a daily drawdown ceiling — while any of them trip, the brain refuses fresh setups. That refusal is load-bearing. It is not bypassed, tuned around, or apologized for.
+- **The chain is the product.** Every call carries its wallets, venues, conviction, leverage suggestion, entry/stop/TP hints, and invalidation condition. A bare direction without that chain is theater.
+
+## For agents (MCP + HTTP)
+
+Mrcopy is keyless, like a public feed. Point any agent at the live app over Streamable HTTP:
 
 ```bash
-cd Mrcopy
-npm install
-cp .env.example .env
-# edit .env: TRACKED_WALLETS=0xabc...,0xdef... (5-10 proven HL perp traders)
-# find them: Hyperliquid leaderboard, HyperX, HyperTracker, AsterScan leaderboard
-npm run dev
-# monitor UI (black/yellow heartbeat scope + how-to-call-it): http://localhost:8787/
+claude mcp add mrcopy --transport http https://mrcopylive.vercel.app/mcp
 ```
 
-Execution agent wiring (your Binance OS side):
-1. Connect the Binance MCP server (`binance.com/mcp/agentic`) in a dedicated
-   sub-account. Fund only what the agent may lose.
-2. Connect THIS repo too: `npm run mcp` (stdio) or poll `GET :8787/calls/active`.
-3. Add `skills/call-agent/SKILL.md` to your execution agent (Skill Hub format).
-4. Optionally set `EXECUTION_WEBHOOK_URL` so calls push to your agent.
+Codex takes `--url` with the same address. Cursor takes it as a Streamable HTTP server; ChatGPT web takes it as a plugin URL in Developer Mode. Seven tools: `get_active_calls`, `get_call_detail`, `list_tracked_wallets`, `get_performance`, `get_briefing`, `ask_brain`, `list_plans`.
 
-## CALL object
+Over plain HTTP, the brain answers the same questions:
+
+```bash
+S=https://mrcopy.100.61.3.35.nip.io
+curl -s $S/calls/active                                    # open calls
+curl -s $S/briefing                                       # enter-today board
+curl -s -X POST -H 'Content-Type: application/json' \
+  -d '{"question":"what can I enter today?"}' $S/ask
+curl -s -X POST -H 'Content-Type: application/json' \
+  -d '{"wallet":"0x...","symbol":"BTCUSDT","side":"LONG"}' $S/ingest/aster
+```
+
+A call looks like this:
 
 ```json
 {
@@ -69,22 +93,68 @@ Execution agent wiring (your Binance OS side):
 }
 ```
 
-`pre_binance_alpha=true` means leaders are in early on HL/Aster but Binance has
-no perp yet — execution agent waits (or small Spot/Convert only).
+After your execution agent closes on Binance: `POST /calls/:id/close {"pnlPct": 4.2, "exitReason": "tp1"}` → trust updates. Optionally set `EXECUTION_WEBHOOK_URL` and every CALL / EXIT pushes to your agent instead of waiting to be polled. The `skills/call-agent/SKILL.md` file encodes the execution-side guardrails: sub-account caps, pre-Binance alpha handling, stops, Emergency Stop.
 
-## Aster honesty note
+## Live right now
 
-Aster's perp engine is privacy-default: no public endpoint reveals another
-trader's positions. HL flow is automatic (on-chain polling); Aster trader flow
-arrives via `POST /ingest/aster` from an indexer you run (AsterScan API,
-Bitquery gRPC firehose, or scraper). Market/funding polling is automatic.
+- Brain (AWS, Docker, SQLite, always on): `https://mrcopy.100.61.3.35.nip.io`
+- Landing + MCP proxy (Vercel): `https://mrcopylive.vercel.app` (also `https://mrcopy-eight.vercel.app`)
+- MCP endpoint, keyless: `https://mrcopylive.vercel.app/mcp`
+- LLM strategist on (OpenRouter) with rule-based fallback; Telegram CALL / EXIT pings if `TELEGRAM_*` is set
 
-## Feedback loop
+## Technologies we used
 
-After your execution agent closes on Binance:
-`POST /calls/:id/close {"pnlPct": 4.2, "exitReason": "tp1"}` → trust updates.
+Application and infrastructure:
+
+- Node 22 + TypeScript
+- Express (REST + static landing)
+- SQLite via better-sqlite3 (calls, wallet trust, fills, plans)
+- Model Context Protocol SDK (Streamable HTTP, keyless)
+- Docker + Docker Compose (AWS box, persistent volume)
+- Caddy (automatic TLS)
+- Vercel (landing page + `/mcp` rewrite proxy)
+
+Market data and intelligence:
+
+- Hyperliquid public API (clearinghouse state, fills, leaderboard discovery)
+- Aster public fapi (markets, funding) + push ingest for trader flow
+- Binance public fapi (listing / funding / volume lag checks only — no keys, ever)
+- OpenRouter LLM strategist with a `SOUL.md` system prompt and a rule-based fallback
+- Wallet trust engine (0.0–2.0) with outcome feedback
+- Call lifecycle engine (conviction scoring, leaders-close exits, TTL)
+
+## Challenges we ran into
+
+### Aster hides its traders
+
+Aster's perp engine is privacy-default: unlike Hyperliquid, there is no public endpoint for another trader's positions. The honest answer is a split design — HL flow polled automatically, Aster flow pushed in via `/ingest` from an indexer you operate — instead of pretending full coverage.
+
+### Rate limits bite when the pool runs hot
+
+A full wallet pool polling Hyperliquid every 15 seconds eats `429`s. Discovery caps, poll intervals, and pool size are the levers; the logs say plainly when the desk is shouting too loud.
+
+### The lag is not constant
+
+Sometimes Binance follows in minutes, sometimes it never lists. The `pre_binance_alpha` flag exists because "Binance will follow" is a probability, not a promise — the execution agent must know which calls are confirmed lag and which are early.
+
+### Keyless means exposed
+
+No keys anywhere means anyone can ask the brain (spending AI budget) or push fake flow into `/ingest` (poisoning signals). That is the chosen trade, same as a public data feed — but it is a trade, not an oversight.
+
+## Status
+
+Mrcopy runs end to end today:
+
+- Hyperliquid leader tracking with automatic discovery and pool rotation
+- Aster market tracking + push ingest for trader flow
+- Binance lag confirmation before calls
+- Conviction-scored CALL / EXIT lifecycle with TTL and leaders-close exits
+- Wallet trust learning from reported outcomes
+- LLM strategist (`/ask`, `/briefing`) with rule-based fallback
+- Keyless MCP server (7 tools) + full REST surface
+- Live AWS brain behind TLS + Vercel landing with proxied `/mcp`
+- Paper-trade mode (`DRY_RUN=true`), Telegram pings, execution webhook pushes
 
 ## Disclaimers
 
-Experimental. Perps + leverage can liquidate. Paper-trade first
-(`DRY_RUN=true`, small sub-account funding). Not financial advice.
+Experimental. Perps + leverage can liquidate. Paper-trade first (`DRY_RUN=true`, small sub-account funding). Not financial advice.
