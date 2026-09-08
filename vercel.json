@@ -1,0 +1,5 @@
+{
+  "outputDirectory": "dist-web",
+  "buildCommand": "node scripts/build-web.mjs",
+  "framework": null
+}

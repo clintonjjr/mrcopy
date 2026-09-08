@@ -1,6 +1,8 @@
 .env
 node_modules/
 dist/
+dist-web/
+.vercel/
 data/*.db*
 data/*.db-*
 *.log
@@ -8,3 +10,4 @@ data/*.db-*
 shoot.cjs
 preview-*.png
 mcp-test.mjs
+.vercel

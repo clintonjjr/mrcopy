@@ -38,6 +38,23 @@ export function createServer(aster: AsterTracker, learning: LearningEngine, brai
   const app = express();
   app.use(express.json({ limit: "256kb" }));
 
+  // CORS for the split deploy: the Vercel landing page calls this API
+  // cross-origin. Secrets still gate every non-public wire.
+  const corsAll = PARAMS.CORS_ORIGINS.split(",").map((s) => s.trim()).filter(Boolean);
+  app.use((req, res, next) => {
+    const o = req.headers.origin;
+    if (o && (corsAll.includes("*") || corsAll.includes(o))) {
+      res.setHeader("Access-Control-Allow-Origin", o);
+      res.setHeader("Vary", "Origin");
+    }
+    if (req.method === "OPTIONS") {
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type,x-api-secret,Authorization");
+      res.setHeader("Access-Control-Allow-Methods", "GET,POST,DELETE,OPTIONS");
+      return void res.status(204).end();
+    }
+    next();
+  });
+
   const needSecret = (req: Request, res: Response, next: NextFunction) => {
     if (!PARAMS.API_SECRET) return next();
     const got = (req.headers["x-api-secret"] as string) ?? "";

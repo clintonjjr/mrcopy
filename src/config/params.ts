@@ -51,6 +51,10 @@ export const PARAMS = {
 
   // Served counter starts here; every call from every agent adds up.
   CALL_COUNT_BASE: Number(process.env.CALL_COUNT_BASE ?? 1000),
+
+  // CORS for the split deploy (Vercel landing -> Mac brain).
+  // Comma list, or "*" to allow any origin (reads are public anyway).
+  CORS_ORIGINS: process.env.CORS_ORIGINS ?? "",
 };
 
 export const TRACKED_WALLETS: string[] = (process.env.TRACKED_WALLETS ?? "")

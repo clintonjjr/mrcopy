@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MRCOPY — Copy-trade calls for trading agents</title>
 <link rel="icon" href="data:,">
+<meta name="mrcopy-api" content="__MRCOPY_API_BASE__">
 <meta name="description" content="Mrcopy watches smart perp traders on Hyperliquid + Aster and serves ranked copy-trade calls to any agent over REST or MCP.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -465,6 +466,25 @@
 <script>
 (function () {
   'use strict';
+  // API base: baked meta (Vercel build) → ?api= override (saved) → same origin.
+  var API = (function () {
+    try {
+      var q = new URLSearchParams(window.location.search).get('api');
+      if (q) {
+        try { window.localStorage.setItem('mrcopy_api', q); } catch (e) {}
+        try { window.history.replaceState({}, '', window.location.pathname); } catch (e2) {}
+        return q.replace(/\/$/, '');
+      }
+      try {
+        var s = window.localStorage.getItem('mrcopy_api');
+        if (s) return s.replace(/\/$/, '');
+      } catch (e3) {}
+    } catch (e4) {}
+    var m = document.querySelector('meta[name="mrcopy-api"]');
+    var c = m ? (m.getAttribute('content') || '') : '';
+    if (c === '__MRCOPY_API_BASE__') c = '';
+    return c.replace(/\/$/, '');
+  })();
   var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   var YELLOW = '#FFD400', YELLOW_HI = '#FFE95A';
@@ -636,9 +656,9 @@
   async function poll() {
     try {
       var parts = await Promise.all([
-        fetch('/health').then(function (r) { return r.json(); }),
-        fetch('/calls/active').then(function (r) { return r.json(); }),
-        fetch('/stats').then(function (r) { return r.json(); }).catch(function () { return null; })
+        fetch(API + '/health').then(function (r) { return r.json(); }),
+        fetch(API + '/calls/active').then(function (r) { return r.json(); }),
+        fetch(API + '/stats').then(function (r) { return r.json(); }).catch(function () { return null; })
       ]);
       var h = parts[0], a = parts[1], s = parts[2];
       document.getElementById('livePill').classList.add('live');
