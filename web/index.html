@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MRCOPY — Copy-trade calls for trading agents</title>
 <link rel="icon" href="data:,">
-<meta name="mrcopy-api" content="__MRCOPY_API_BASE__">
+<meta name="mrcopy-api" content="">
 <meta name="description" content="Mrcopy watches smart perp traders on Hyperliquid + Aster and serves ranked copy-trade calls to any agent over REST or MCP.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -482,7 +482,6 @@
     } catch (e4) {}
     var m = document.querySelector('meta[name="mrcopy-api"]');
     var c = m ? (m.getAttribute('content') || '') : '';
-    if (c === '__MRCOPY_API_BASE__') c = '';
     return c.replace(/\/$/, '');
   })();
   var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;

@@ -72,3 +72,24 @@ pointing at `https://mrcopy.example.com/mcp` with header
   analysis; the soul and the research gate apply either way.
 - The brain refuses fresh setups while protections halt (cooldowns,
   stop-guard, daily drawdown). That is load-bearing — don't bypass it.
+
+## Mac + Vercel split (no AWS box)
+
+The Mac is the always-on brain (trackers + SQLite can't live on serverless).
+Vercel hosts only the landing page; the page calls home for live data.
+
+```bash
+# 1. Allow the landing page to call the brain (already CORS_ORIGINS=* in .env)
+# 2. Expose the Mac publicly (free, no port forwarding):
+cloudflared tunnel --url http://localhost:8787
+# → https://<name>.trycloudflare.com  (changes every restart!)
+
+# 3. Bake that URL into the landing page and deploy the single file:
+MRCOPY_API=https://<name>.trycloudflare.com node scripts/build-web.mjs
+# upload dist-web/index.html, or: vercel deploy --prod
+```
+
+- Agents use the tunnel URL directly for REST + MCP (`https://<tunnel>/mcp`).
+- The `?api=` query param overrides the baked URL at runtime (saved to
+  localStorage) — handy when the tunnel URL rotates.
+- For a stable URL: Cloudflare named tunnel + your own domain, then rebuild.
