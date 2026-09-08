@@ -1,0 +1,12 @@
+{
+  "servers": {
+    "binance-mcp-server": {
+      "type": "http",
+      "url": "https://agent.binance.com/mcp/agentic"
+    },
+    "mrcopy": {
+      "type": "http",
+      "url": "https://mrcopylive.vercel.app/mcp"
+    }
+  }
+}
